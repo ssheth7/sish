@@ -23,6 +23,14 @@ typedef struct sish_flags {
 } sish_flags;
 
 sish_flags flags;
+typedef struct command_struct {
+	char* raw;
+	char** tokenized;
+	int exit_code;
+	int num_pipes;
+	int num_tokens;
+} command_struct;
+
 
 int main(int, char**);
 

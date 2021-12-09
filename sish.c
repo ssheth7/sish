@@ -13,23 +13,79 @@
 #include "str.h"
 
 
-char *
+int
+execute_command(struct command_struct* command) 
+{
+	int status;
+	pid_t pid;
+	/*for (int i = 0; i < command->num_tokens; i++) {
+		printf("tokenized[%d]: %s\n", i, command->tokenized[i]);
+	}*/
+	
+	if ((pid = fork()) == -1) {
+		err(EXIT_FAILURE, "fork");	
+	}
+	if (pid < 0) {
+		execvp(command->tokenized[0], command->tokenized);
+		fprintf(stderr, "shell: couldn't exec %s: %s\n", command->raw, strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	
+	if ((pid = waitpid(pid, &status, 0)) < 0) {
+		err(EXIT_FAILURE, "waitpid");
+	} 
+	//destroy_command(command);
+	printf("%s exited with %d\n", command->raw, status);
+	return EXIT_SUCCESS;
+}
+
+command_struct*
+create_command_struct(char* input)
+{
+	struct command_struct *command;
+	if ((command = malloc(sizeof(command))) == NULL) {
+		err(EXIT_FAILURE, "malloc");
+	}
+	command->raw = input;
+	if ((command->tokenized = malloc(ARG_MAX + 1)) == NULL) {
+		err(EXIT_FAILURE, "malloc");
+	}
+	return command;
+}
+
+void
+destroy_command_struct(struct command_struct* command)
+{
+	int i = 0;
+	for (i = 0; i < command->num_tokens - 1; i++) {
+		free(command->tokenized[i]);
+	}
+	free(command->tokenized);
+	free(command);
+}
+int
 getinput(char *buffer, size_t buflen) 
 {
 	char *input;
-
+	struct command_struct *command;
+			
 	printf("sish$ ");
 	if ((input = fgets(buffer, buflen, stdin)) == NULL) {
 		if (feof(stdin) == 0) { 
 			err(EXIT_FAILURE, "fgets"); 
 		} else {
-			buffer[strlen(buffer) - 1] = '\0';
-			return input;
+			return 0;
 		}
 	}
+	if (buffer[0] == '\n') {
+		return 1;
+	}
 	buffer[strlen(buffer) - 1] = '\0';
-	parseinput(buffer, buflen);
-	return input;
+	command  = create_command_struct(buffer);
+	parse_input(buffer, command,  buflen);
+	execute_command(command);
+	//destroy_command_struct(command);
+	return 1;
 }
 
 
@@ -37,8 +93,7 @@ int
 main(int argc, char **argv) 
 {
 	char buf[ARG_MAX];
-	int opt, status;
-	pid_t pid;
+	int opt;
 	
 	(void)setprogname(argv[0]);
 	
@@ -66,22 +121,8 @@ main(int argc, char **argv)
 	if (signal(SIGQUIT, SIG_IGN) == SIG_ERR) {
 		err(EXIT_FAILURE, "signal");
 	}
-
 	while (getinput(buf, sizeof(buf))) {
-
-		if((pid=fork()) == -1) {
-			err(EXIT_FAILURE, "fork");
-			continue;
-		} else if (pid == 0) {   /* child */
-			execlp(buf, buf, (char *)0);
-			fprintf(stderr, "shell: couldn't exec %s: %s\n", buf, strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-
-		/* parent waits */
-		if ((pid=waitpid(pid, &status, 0)) < 0) {
-			fprintf(stderr, "shell: waitpid error: %s\n", strerror(errno));
-		}
+		;
 	}
 	printf("\n");
 
