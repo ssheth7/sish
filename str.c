@@ -8,6 +8,35 @@
 
 #include "sish.h"
 
+
+char*
+trim_str(char* input, size_t buflen)
+{
+	int start, i, end, newend;;
+	// int startfound, endfound;
+	(void)buflen;
+	
+	end = strlen(input);
+	
+	start = newend = 0;
+	for (i = 0; i < end; i++) {
+		if (input[i] != ' ' && input[i] != '\t') {
+			break;
+		}
+		start++;
+	}
+	for (i = end - 1; i >= 0; i--) {
+		if (input[i] != ' ' && input[i] != '\t') {
+			break;
+		}
+		newend = i;
+	}
+	if (newend > i) {
+		input[newend] = '\0';
+	}
+	return input + start; 
+}
+
 void
 parse_input(char* input, struct command_struct* command, size_t buflen)
 {
@@ -17,7 +46,8 @@ parse_input(char* input, struct command_struct* command, size_t buflen)
 	int rc, start, end, index, tokenlen;
 	size_t nmatch = 1;
 	regmatch_t pmatch[1];
-	
+
+	input = trim_str(input, buflen);	
 	if ((inputcommand = malloc(buflen)) == NULL) {
 		err(EXIT_FAILURE, "malloc");
 	}
@@ -56,30 +86,4 @@ parse_input(char* input, struct command_struct* command, size_t buflen)
 	command->num_tokens = index + 2;
    	regfree(&preg);
 	free(inputcommand);
-}
-
-char*
-trim_str(char* input, size_t buflen)
-{
-	//cint start, end, i, j;
-	// int startfound, endfound;
-	(void)buflen;
-	/*
-	end = strlen(input);
-	startfound = endfound = start = 0;
-	
-	for (i = 0, j = end - 1; i < strlen(input); i++, j--) {
-		if (input[i] == " ") {
-			start++;	
-		} else {
-			startfound = 1;
-		}
-
-		if (input[j] == " ") {
-			end = j - 1;
-		} else {
-			endfound = 1;
-		}
-	}*/
-	return input; 
 }

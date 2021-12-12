@@ -45,15 +45,16 @@ execute_command(struct command_struct* command)
 		err(EXIT_FAILURE, "fork");	
 	}
 	if (pid == 0) {
-		execv(command->tokenized[0], command->tokenized + 1);
-		fprintf(stderr, "shell: couldn't exec %s: %s\n", command->raw, strerror(errno));
-		exit(EXIT_FAILURE);
+		execvp(command->tokenized[0], command->tokenized);
+		(void)_exit(127);
 	}
 	
 	if ((pid = waitpid(pid, &status, 0)) < 0) {
 		err(EXIT_FAILURE, "waitpid");
 	} 
-	printf("%s exited with %d\n", command->raw, status);
+	command->exit_code = status;
+	EXIT_STATUS = status;
+	//printf("%s exited with %d\n", command->raw, status);
 	return EXIT_SUCCESS;
 }
 
