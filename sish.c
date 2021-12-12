@@ -9,6 +9,7 @@
 /*
  * Usage: sish [-x] [-c command]
 */
+#include "builtins.h"
 #include "sish.h"
 #include "str.h"
 
@@ -35,9 +36,14 @@ create_command_struct(char* input)
 int
 execute_command(struct command_struct* command) 
 {
+	char* initcommand;
 	int status;
 	pid_t pid;
-
+	
+	initcommand = command->tokenized[0];
+	if (strncmp(initcommand, CD_BUILTIN, strlen(initcommand)) == 0) {
+		return cd(command);
+	}
 	/*for (int i = 0; i < command->num_tokens; i++) {
 		printf("tokenized[%d]: %s\n", i, command->tokenized[i]);
 	}*/
@@ -46,16 +52,20 @@ execute_command(struct command_struct* command)
 	}
 	if (pid == 0) {
 		execvp(command->tokenized[0], command->tokenized);
-		(void)_exit(127);
+		if (errno == ENOENT) {
+			fprintf(stderr, "%s: %s: command not found\n", getprogname(), command->raw);
+		} else {
+			fprintf(stderr, "%s: %s: %s\n", getprogname(), command->raw, strerror(errno));
+		}
+		(void)exit(127);
 	}
 	
 	if ((pid = waitpid(pid, &status, 0)) < 0) {
 		err(EXIT_FAILURE, "waitpid");
 	} 
 	command->exit_code = status;
-	EXIT_STATUS = status;
 	//printf("%s exited with %d\n", command->raw, status);
-	return EXIT_SUCCESS;
+	return status;
 }
 
 int
@@ -78,7 +88,10 @@ getinput(char *buffer, size_t buflen)
 	buffer[strlen(buffer) - 1] = '\0';
 	command  = create_command_struct(buffer);
 	parse_input(buffer, command,  buflen);
-	execute_command(command);
+	EXIT_STATUS = execute_command(command);
+	if (EXIT_STATUS == 127) {
+		fprintf(stderr, "%s: %s: command not found\n", getprogname(), command->tokenized[0]);
+	}
 	return 1;
 }
 
@@ -108,6 +121,8 @@ main(int argc, char **argv)
 	argc -= optind;
 	argc += optind;
 	
+	pwd = getpwuid(getuid());
+		
 	if (flags.c) {
 		struct command_struct *command  = create_command_struct(flags.c);
 		parse_input(command->raw, command,  strlen(command->raw) + 1);

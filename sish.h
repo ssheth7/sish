@@ -7,6 +7,7 @@
 #include <err.h>
 #include <errno.h>
 #include <limits.h>
+#include <pwd.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,7 +17,12 @@
 #define usage "sish [-x] [-c command]\n"
 #define MAX_TOKENS  256
 #define MAX_TOKENLEN  128
+#define CD_BUILTIN "cd"
+#define ECHO_BUILTIN "echo"
+
 int EXIT_STATUS;
+
+struct passwd *pwd;
 
 typedef struct sish_flags {
 	char* c; /* command  */
