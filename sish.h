@@ -14,7 +14,8 @@
 #include <unistd.h>
 
 #define usage "sish [-x] [-c command]\n"
-
+#define MAX_TOKENS  256
+#define MAX_TOKENLEN  128
 int EXIT_STATUS;
 
 typedef struct sish_flags {
