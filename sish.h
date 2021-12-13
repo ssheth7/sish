@@ -17,8 +17,10 @@
 #define usage "sish [-x] [-c command]\n"
 #define MAX_TOKENS  256
 #define MAX_TOKENLEN  128
-#define CD_BUILTIN "cd"
+
+#define CD_BUILTIN   "cd"
 #define ECHO_BUILTIN "echo"
+#define EXIT_BUILTIN "exit"
 
 int EXIT_STATUS;
 

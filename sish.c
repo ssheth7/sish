@@ -19,7 +19,7 @@ create_command_struct(char* input)
 	int inputlen;
 	struct command_struct *command;
 	inputlen = strlen(input) + 1;
-	if ((command = calloc(1, sizeof(command))) == NULL) {
+	if ((command = calloc(1, ARG_MAX)) == NULL) {
 		err(EXIT_FAILURE, "calloc");
 	}
 	if ((command->raw = calloc(1, sizeof(char*) * (inputlen))) == NULL) {
@@ -39,32 +39,45 @@ execute_command(struct command_struct* command)
 	char* initcommand;
 	int status;
 	pid_t pid;
+	sigset_t nmask, omask;
+	
 	
 	initcommand = command->tokenized[0];
 	if (strncmp(initcommand, CD_BUILTIN, strlen(initcommand)) == 0) {
 		return cd(command);
+	} else if (strncmp(initcommand, ECHO_BUILTIN, strlen(initcommand)) == 0) {
+		return echo(command);
 	}
 	/*for (int i = 0; i < command->num_tokens; i++) {
 		printf("tokenized[%d]: %s\n", i, command->tokenized[i]);
 	}*/
-	if ((pid = fork()) == -1) {
-		err(EXIT_FAILURE, "fork");	
+
+	if (sigemptyset(&nmask) < 0) {
+		err(EXIT_FAILURE, "sigemptyset");
 	}
-	if (pid == 0) {
-		execvp(command->tokenized[0], command->tokenized);
-		if (errno == ENOENT) {
-			fprintf(stderr, "%s: %s: command not found\n", getprogname(), command->raw);
-		} else {
-			fprintf(stderr, "%s: %s: %s\n", getprogname(), command->raw, strerror(errno));
-		}
-		(void)exit(127);
+	if (sigaddset(&nmask, SIGCHLD) < 0) {
+		err(EXIT_FAILURE, "sigaddset");
+	}	
+	if (sigprocmask(SIG_BLOCK, &nmask, &omask) < 0) {
+		err(EXIT_FAILURE, "sigprocmask");
 	}
 	
-	if ((pid = waitpid(pid, &status, 0)) < 0) {
-		err(EXIT_FAILURE, "waitpid");
-	} 
+	if ((pid = fork()) == -1) {
+		err(EXIT_FAILURE, "fork");	
+		/* NOT REACHED  */
+	}
+	/* child process  */
+	if (pid == 0) { 		
+		execvp(command->tokenized[0], command->tokenized);
+		return 127;
+	}
+	/* parent process  */
+	if (pid > 0) {
+		if (waitpid(pid, &status, 0) < 0) {
+			err(EXIT_FAILURE, "waitpid");
+		}
+	}
 	command->exit_code = status;
-	//printf("%s exited with %d\n", command->raw, status);
 	return status;
 }
 
@@ -79,20 +92,24 @@ getinput(char *buffer, size_t buflen)
 		if (feof(stdin) == 0) { 
 			err(EXIT_FAILURE, "fgets"); 
 		} else {
-			return 0;
+			printf("\n");
+			exit_sish();	
 		}
 	}
-	if (buffer[0] == '\n') {
-		return 1;
+	if (strncmp(buffer, "\n", strlen(buffer)) == 0) {
+		return 0;
 	}
 	buffer[strlen(buffer) - 1] = '\0';
+	if (strncmp(input, EXIT_BUILTIN, strlen(input)) == 0) {
+		exit_sish();
+	}
 	command  = create_command_struct(buffer);
 	parse_input(buffer, command,  buflen);
 	EXIT_STATUS = execute_command(command);
 	if (EXIT_STATUS == 127) {
 		fprintf(stderr, "%s: %s: command not found\n", getprogname(), command->tokenized[0]);
 	}
-	return 1;
+	return 0;
 }
 
 
@@ -125,9 +142,12 @@ main(int argc, char **argv)
 		
 	if (flags.c) {
 		struct command_struct *command  = create_command_struct(flags.c);
-		parse_input(command->raw, command,  strlen(command->raw) + 1);
-		execute_command(command);
-		exit(EXIT_SUCCESS);
+		parse_input(command->raw, command,  sizeof(buf));
+		EXIT_STATUS = execute_command(command);
+		if (EXIT_STATUS == 127) {
+			fprintf(stderr, "%s: %s: command not found\n", getprogname(), command->tokenized[0]);
+		}
+		return EXIT_STATUS;
 	}
 	
 	if (signal(SIGINT, SIG_IGN) == SIG_ERR) {
@@ -137,10 +157,10 @@ main(int argc, char **argv)
 	if (signal(SIGQUIT, SIG_IGN) == SIG_ERR) {
 		err(EXIT_FAILURE, "signal");
 	}
-	while (getinput(buf, sizeof(buf))) {
+	while (!getinput(buf, sizeof(buf))) {
 		;
 	}
 	printf("\n");
 
-	exit(EXIT_SUCCESS);
+	return EXIT_STATUS;
 }
