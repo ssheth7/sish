@@ -180,7 +180,7 @@ delimit_by_space(struct command_struct* command)
 	char *current_pgroup;
 	char **tokenized;
 	int rc, start, end, index, tokenlen;
-	int tokenized_index;
+	int tokenized_index, num_spaces;
 	size_t nmatch = 1;
 	regmatch_t pmatch[1];
 
@@ -196,6 +196,7 @@ delimit_by_space(struct command_struct* command)
 		while (!(rc = regexec(&preg, current_pgroup, nmatch, pmatch, 0))) {
        		 	start = pmatch[0].rm_so;
 			end   = pmatch[0].rm_eo;
+			num_spaces = end - start;
 			tokenlen = start;
 			
 			/* Add characters in between delimiter  */
@@ -206,9 +207,15 @@ delimit_by_space(struct command_struct* command)
 			tokenized[index][start] = '\0';
 			if (start == 0) {
 				index--;
-			}	
-			current_pgroup += end;      // seek the pointer to the start of the next token
+			}
 			index++;
+			if ((tokenized[index] = malloc(sizeof(char*) * (num_spaces + 1))) == NULL) {
+				exit(EXIT_FAILURE);
+			}
+			strncpy(tokenized[index], current_pgroup + start, num_spaces);
+			tokenized[index][num_spaces + 1] = '\0';
+			index++;
+			current_pgroup += end;      // seek the pointer to the start of the next token
 			
 		}
     		// print the last remaining portion
@@ -220,7 +227,6 @@ delimit_by_space(struct command_struct* command)
 		strncpy(tokenized[index], current_pgroup, tokenlen);
 		tokenized[index][tokenlen] = '\0';
 		index++;
-   //     	printf("tokenized[%d]: `%s` starts at %d\n", index, tokenized[index], start);
    		}
 		tokenized_index++;
 	}

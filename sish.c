@@ -80,27 +80,10 @@ execute_command(struct command_struct* command)
 }
 
 int
-getinput(char *buffer, size_t buflen) 
+process_input(char *buffer) 
 {
-	char *input;
 	struct command_struct *command;
 			
-	printf("sish$ ");
-	if ((input = fgets(buffer, buflen, stdin)) == NULL) {
-		if (feof(stdin) == 0) { 
-			err(EXIT_FAILURE, "fgets"); 
-		} else {
-			printf("\n");
-			exit_sish();	
-		}
-	}
-	if (strncmp(buffer, "\n", strlen(buffer)) == 0) {
-		return 0;
-	}
-	buffer[strlen(buffer) - 1] = '\0';
-	if (strncmp(input, EXIT_BUILTIN, strlen(input)) == 0) {
-		exit_sish();
-	}
 	command  = create_command_struct(buffer);
 	delimit_by_pipe(command);
 	delimit_by_redirect(command);
@@ -144,12 +127,10 @@ main(int argc, char **argv)
 		if (strlen(flags.c) == 0) {
 			return 0;
 		}
-		struct command_struct *command  = create_command_struct(flags.c);
-		delimit_by_pipe(command);
-		EXIT_STATUS = execute_command(command);
-		if (EXIT_STATUS == 127) {
-			fprintf(stderr, "%s: %s: command not found\n", getprogname(), command->tokenized[0]);
+		if (strncmp(flags.c, EXIT_BUILTIN, strlen(flags.c)) == 0) {
+			exit_sish();
 		}
+		process_input(flags.c);	
 		return EXIT_STATUS;
 	}
 	
@@ -160,10 +141,27 @@ main(int argc, char **argv)
 	if (signal(SIGQUIT, SIG_IGN) == SIG_ERR) {
 		err(EXIT_FAILURE, "signal");
 	}
-	while (!getinput(buf, sizeof(buf))) {
-		;
+	
+	char *input;
+	for (;;) {
+		
+		printf("sish$ ");
+		if ((input = fgets(buf, ARG_MAX, stdin)) == NULL) {
+			if (feof(stdin) == 0) { 
+				err(EXIT_FAILURE, "fgets"); 
+			} else {
+				printf("\n");
+				exit_sish();	
+			}
+		}
+		if (strncmp(buf, "\n", strlen(buf)) == 0) {
+			return 0;
+		}
+		buf[strlen(buf) - 1] = '\0';
+		if (strncmp(input, EXIT_BUILTIN, strlen(input)) == 0) {
+			exit_sish();
+		}
+		process_input(buf);
 	}
-	printf("\n");
-
 	return EXIT_STATUS;
 }
