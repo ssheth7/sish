@@ -30,12 +30,18 @@ create_command_struct(char* input)
 	command->num_pipes = 0;
 	return command;
 }
-
+/*
+int
+iterate_tokens(struct command_struct* command) 
+{
+	int stdoutpipe[2];
+	int stdinpipe[2];
+}*/ 
 int
 execute_command(struct command_struct* command) 
 {
-	//char* initcommand;
-	int status;
+	char* token;
+	int end_index, start_index, status, i, j;
 	pid_t pid;
 	sigset_t nmask, omask;
 	
@@ -46,10 +52,9 @@ execute_command(struct command_struct* command)
 	} else if (strncmp(initcommand, ECHO_BUILTIN, strlen(initcommand)) == 0) {
 		return echo(command);
 	}*/
-	for (int i = 0; i < command->num_tokens; i++) {
+	/*for (int i = 0; i < command->num_tokens; i++) {
 		printf("tokenized[%d]: `%s`\n", i, command->tokenized[i]);
-	}
-
+	}*/
 	if (sigemptyset(&nmask) < 0) {
 		err(EXIT_FAILURE, "sigemptyset");
 	}
@@ -59,20 +64,42 @@ execute_command(struct command_struct* command)
 	if (sigprocmask(SIG_BLOCK, &nmask, &omask) < 0) {
 		err(EXIT_FAILURE, "sigprocmask");
 	}
-	
-	if ((pid = fork()) == -1) {
-		err(EXIT_FAILURE, "fork");	
-		/* NOT REACHED  */
-	}
-	/* child process  */
-	if (pid == 0) { 		
-		execvp(command->tokenized[0], command->tokenized);
-		return 127;
-	}
-	/* parent process  */
-	if (pid > 0) {
-		if (waitpid(pid, &status, 0) < 0) {
-			err(EXIT_FAILURE, "waitpid");
+
+	/* For each command  */	
+	for (i = 0; i < command->num_pipes - 1; i++) {
+		start_index = command->pipe_indexes[i];
+		end_index = command->pipe_indexes[i + 1];
+		if (end_index == -1) {
+			end_index = command->num_tokens;
+		}
+		if (start_index != 0) {
+			start_index ++;
+		}
+		printf("group %d pipe_index: %d\n", i, start_index);
+		
+		/* Process each from left to right */
+		for (j = start_index; j < end_index; j++) {
+			token = command->tokenized[j];
+			printf("\tgroup: %d token_index: %d token: %s\n", i, j, command->tokenized[j]);
+		}
+		continue;
+		if (strncmp(token, "<", strlen(token) ) != 0) {
+			printf("stdin from %s\n", );
+		}
+		if ((pid = fork()) == -1) {
+			err(EXIT_FAILURE, "fork");	
+			/* NOT REACHED  */
+		}
+		/* child process  */
+		if (pid == 0) { 		
+			execvp(command->tokenized[0], command->tokenized);
+			return 127;
+		}
+		/* parent process  */
+		if (pid > 0) {
+			if (waitpid(pid, &status, 0) < 0) {
+				err(EXIT_FAILURE, "waitpid");
+			}
 		}
 	}
 	command->exit_code = status;
@@ -82,15 +109,30 @@ execute_command(struct command_struct* command)
 int
 process_input(char *buffer) 
 {
+	int i, pipe_index;
 	struct command_struct *command;
 			
 	command  = create_command_struct(buffer);
 	delimit_by_pipe(command);
 	delimit_by_redirect(command);
 	delimit_by_space(command);
+	command->pipe_indexes[0] = 0;
+	for (i = 0, pipe_index = 1; i < command->num_tokens - 1; i++) {
+		//printf("%d: %s\n", i, command->tokenized[i]);
+		if (strncmp(command->tokenized[i], "|", strlen(command->tokenized[i])) == 0) {
+			//printf("pipe #%d at token %d\n", pipe_index, i);
+			command->pipe_indexes[pipe_index++] = i;
+		}
+	}
+	command->pipe_indexes[pipe_index] = -1;
+	command->num_pipes = pipe_index + 1;
+	//printf("num_pipes: %d\n", pipe_index + 1);
 	EXIT_STATUS = execute_command(command);
 	if (EXIT_STATUS == 127) {
 		fprintf(stderr, "%s: %s: command not found\n", getprogname(), command->tokenized[0]);
+	}
+	for (i = 0; i < command->num_tokens - 1; i++) {
+		free(command->tokenized[i]);
 	}
 	return 0;
 }

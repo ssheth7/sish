@@ -71,11 +71,14 @@ delimit_by_pipe(struct command_struct* command)
 		}
 		strncpy(tokenized[index], inputcommand, start);
 		tokenized[index][tokenlen] = '\0';
+		index++;
+		if ((tokenized[index] = malloc(sizeof(char*) * 2)) == NULL) {
+			exit(EXIT_FAILURE);
+		}	
+		strncpy(tokenized[index], "|", 2); 
+		tokenized[index][2] = '\0';
+		index++;
 		inputcommand += end;      // seek the pointer to the start of the next token
-		index++;
-		
-		tokenized[index] = "|";
-		index++;
 		command->num_pipes++;
 		
 	}
@@ -205,15 +208,17 @@ delimit_by_space(struct command_struct* command)
 			}
 			strncpy(tokenized[index], current_pgroup, start);
 			tokenized[index][start] = '\0';
+			printf("%d: %s\n", index, tokenized[index]);
 			if (start == 0) {
 				index--;
 			}
 			index++;
-			if ((tokenized[index] = malloc(sizeof(char*) * (num_spaces + 1))) == NULL) {
+			if ((tokenized[index] = malloc(sizeof(char*) * MAX_TOKENLEN)) == NULL) {
 				exit(EXIT_FAILURE);
 			}
 			strncpy(tokenized[index], current_pgroup + start, num_spaces);
 			tokenized[index][num_spaces + 1] = '\0';
+			//printf("%d: %s\n", index, tokenized[index]);
 			index++;
 			current_pgroup += end;      // seek the pointer to the start of the next token
 			
@@ -226,6 +231,7 @@ delimit_by_space(struct command_struct* command)
 		}
 		strncpy(tokenized[index], current_pgroup, tokenlen);
 		tokenized[index][tokenlen] = '\0';
+		printf("%d: %s\n", index, tokenized[index]);
 		index++;
    		}
 		tokenized_index++;
