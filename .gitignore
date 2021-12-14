@@ -1,5 +1,6 @@
 *.core
 sish
+*.swp
 # Prerequisites
 *.d
 

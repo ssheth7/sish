@@ -47,7 +47,7 @@ execute_command(struct command_struct* command)
 		return echo(command);
 	}*/
 	for (int i = 0; i < command->num_tokens; i++) {
-		printf("tokenized[%d]: %s\n", i, command->tokenized[i]);
+		printf("tokenized[%d]: `%s`\n", i, command->tokenized[i]);
 	}
 
 	if (sigemptyset(&nmask) < 0) {
@@ -104,6 +104,7 @@ getinput(char *buffer, size_t buflen)
 	command  = create_command_struct(buffer);
 	delimit_by_pipe(command);
 	delimit_by_redirect(command);
+	delimit_by_space(command);
 	EXIT_STATUS = execute_command(command);
 	if (EXIT_STATUS == 127) {
 		fprintf(stderr, "%s: %s: command not found\n", getprogname(), command->tokenized[0]);
