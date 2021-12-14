@@ -15,8 +15,9 @@
 #include <unistd.h>
 
 #define usage "sish [-x] [-c command]\n"
-#define MAX_TOKENS  256
+#define MAX_TOKENS    256
 #define MAX_TOKENLEN  128
+#define MAX_COMMANDS  32
 
 #define CD_BUILTIN   "cd"
 #define ECHO_BUILTIN "echo"
@@ -38,6 +39,7 @@ typedef struct command_struct {
 	int exit_code;
 	int num_pipes;
 	int num_tokens;
+	int pipe_indexes[32];
 } command_struct;
 
 

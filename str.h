@@ -6,10 +6,10 @@
 #include "sish.h"
 
 void
-parse_input(char*, struct command_struct* , size_t);
+delimit_by_pipe( struct command_struct*);
 
 char*
-trim_str(char*, size_t);
+trim_str(char*);
 
 
 #endif /* !_STR_H_  */

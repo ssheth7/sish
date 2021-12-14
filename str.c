@@ -10,11 +10,9 @@
 
 
 char*
-trim_str(char* input, size_t buflen)
+trim_str(char* input)
 {
-	int start, i, end, newend;;
-	// int startfound, endfound;
-	(void)buflen;
+	int start, i, end, newend;
 	
 	end = strlen(input);
 	
@@ -38,51 +36,63 @@ trim_str(char* input, size_t buflen)
 }
 
 void
-parse_input(char* input, struct command_struct* command, size_t buflen)
+delimit_by_pipe(struct command_struct* command)
 {
 	regex_t preg;
-	char *pattern = "[ ]+";
+	char *pattern = "[|]+";
 	char *inputcommand;
+	char **tokenized;
 	int rc, start, end, index, tokenlen;
+	int commandlen;
 	size_t nmatch = 1;
 	regmatch_t pmatch[1];
 
-	input = trim_str(input, buflen);	
-	if ((inputcommand = malloc(buflen)) == NULL) {
+	command->raw = trim_str(command->raw);	
+	commandlen = strlen(command->raw);	
+	if ((inputcommand = malloc(commandlen + 1)) == NULL) {
 		err(EXIT_FAILURE, "malloc");
 	}
 
-	strncpy(inputcommand, input, buflen);
-	inputcommand[strlen(input)] = '\0';
+	strncpy(inputcommand, command->raw, commandlen + 1);
+	inputcommand[strlen(command->raw)] = '\0';
 	if ((rc = regcomp(&preg, pattern, REG_EXTENDED)) != 0) {
 		err(EXIT_FAILURE, "regcomp");
+	}
+	if ((tokenized = calloc(MAX_TOKENS, MAX_TOKENLEN)) == NULL) {
+		err(EXIT_FAILURE, "calloc");
 	}
 	index = 0;
 	while (!(rc = regexec(&preg, inputcommand, nmatch, pmatch, 0))) {
         	start = pmatch[0].rm_so;
 		end   = pmatch[0].rm_eo;
 		tokenlen = start;
-		if ((command->tokenized[index] = malloc(sizeof(char*) * MAX_TOKENLEN)) == NULL) {
+		if ((tokenized[index] = malloc(sizeof(char*) * MAX_TOKENLEN)) == NULL) {
 			exit(EXIT_FAILURE);
 		}
-		strncpy(command->tokenized[index], inputcommand, start);
-		command->tokenized[index][tokenlen] = '\0';
-//		printf("tokenized[%d] `%s` starts at %d end %d\n", index, command->tokenized[index],
-//		start, end);
+		strncpy(tokenized[index], inputcommand, start);
+		tokenized[index][tokenlen] = '\0';
 		inputcommand += end;      // seek the pointer to the start of the next token
 		index++;
+		
+		tokenized[index] = "|";
+		command->pipe_indexes[command->num_pipes] = index;
+		index++;
+		command->num_pipes++;
+		
 	}
     	// print the last remaining portion
     	if (strlen(inputcommand) > 0) {
 		tokenlen = strlen(inputcommand);
-		if ((command->tokenized[index] = malloc(sizeof(char*) * MAX_TOKENLEN)) == NULL) {
+		if ((tokenized[index] = malloc(sizeof(char*) * MAX_TOKENLEN)) == NULL) {
 			err(EXIT_FAILURE, "malloc");;
 		}
-		strncpy(command->tokenized[index], inputcommand, tokenlen);
-		command->tokenized[index][tokenlen] = '\0';
+		strncpy(tokenized[index], inputcommand, tokenlen);
+		tokenized[index][tokenlen] = '\0';
    //     	printf("tokenized[%d]: `%s` starts at %d\n", index, command->tokenized[index], start);
    	}
-	command->tokenized[index + 1] = NULL;
+	tokenized[index + 1] = NULL;
+	
+	command->tokenized = tokenized;
 	command->num_tokens = index + 2;
    	regfree(&preg);
 	free(inputcommand);

@@ -25,11 +25,9 @@ create_command_struct(char* input)
 	if ((command->raw = calloc(1, sizeof(char*) * (inputlen))) == NULL) {
 		err(EXIT_FAILURE, "calloc");
 	}
-	if ((command->tokenized = calloc(MAX_TOKENS, MAX_TOKENLEN)) == NULL) {
-		err(EXIT_FAILURE, "calloc");
-	}
 	strncpy(command->raw, input, inputlen);
 	command->raw[inputlen] = '\0';
+	command->num_pipes = 0;
 	return command;
 }
 
@@ -48,9 +46,9 @@ execute_command(struct command_struct* command)
 	} else if (strncmp(initcommand, ECHO_BUILTIN, strlen(initcommand)) == 0) {
 		return echo(command);
 	}
-	/*for (int i = 0; i < command->num_tokens; i++) {
+	for (int i = 0; i < command->num_tokens; i++) {
 		printf("tokenized[%d]: %s\n", i, command->tokenized[i]);
-	}*/
+	}
 
 	if (sigemptyset(&nmask) < 0) {
 		err(EXIT_FAILURE, "sigemptyset");
@@ -104,7 +102,7 @@ getinput(char *buffer, size_t buflen)
 		exit_sish();
 	}
 	command  = create_command_struct(buffer);
-	parse_input(buffer, command,  buflen);
+	delimit_by_pipe(command);
 	EXIT_STATUS = execute_command(command);
 	if (EXIT_STATUS == 127) {
 		fprintf(stderr, "%s: %s: command not found\n", getprogname(), command->tokenized[0]);
@@ -141,8 +139,11 @@ main(int argc, char **argv)
 	pwd = getpwuid(getuid());
 		
 	if (flags.c) {
+		if (strlen(flags.c) == 0) {
+			return 0;
+		}
 		struct command_struct *command  = create_command_struct(flags.c);
-		parse_input(command->raw, command,  sizeof(buf));
+		delimit_by_pipe(command);
 		EXIT_STATUS = execute_command(command);
 		if (EXIT_STATUS == 127) {
 			fprintf(stderr, "%s: %s: command not found\n", getprogname(), command->tokenized[0]);
