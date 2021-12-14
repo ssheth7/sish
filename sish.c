@@ -34,18 +34,18 @@ create_command_struct(char* input)
 int
 execute_command(struct command_struct* command) 
 {
-	char* initcommand;
+	//char* initcommand;
 	int status;
 	pid_t pid;
 	sigset_t nmask, omask;
 	
 	
-	initcommand = command->tokenized[0];
+	/*initcommand = command->tokenized[0];
 	if (strncmp(initcommand, CD_BUILTIN, strlen(initcommand)) == 0) {
 		return cd(command);
 	} else if (strncmp(initcommand, ECHO_BUILTIN, strlen(initcommand)) == 0) {
 		return echo(command);
-	}
+	}*/
 	for (int i = 0; i < command->num_tokens; i++) {
 		printf("tokenized[%d]: %s\n", i, command->tokenized[i]);
 	}
@@ -103,6 +103,7 @@ getinput(char *buffer, size_t buflen)
 	}
 	command  = create_command_struct(buffer);
 	delimit_by_pipe(command);
+	delimit_by_redirect(command);
 	EXIT_STATUS = execute_command(command);
 	if (EXIT_STATUS == 127) {
 		fprintf(stderr, "%s: %s: command not found\n", getprogname(), command->tokenized[0]);
