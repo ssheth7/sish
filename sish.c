@@ -55,6 +55,7 @@ execute_command(struct command_struct* command)
 	int subcommandindex;
 	char* redirectfile = NULL;
 	char* stdinfile = NULL;
+	int readspaces = 0;
 	/* For each command  */	
 	openflags = O_CREAT | O_RDWR;
 	for (i = 0; i < command->num_pipes - 1; i++) {
@@ -68,31 +69,57 @@ execute_command(struct command_struct* command)
 		}
 		//printf("group %d pipe_index: %d\n", i, start_index);
 		subcommandindex = 0;
+		readspaces = 0;
 		/* Process each from left to right */
 		for (j = start_index; j < end_index; j++) {
 			token = command->tokenized[j];
-			//printf("\tgroup: %d token_index: %d token: %s\n", i, j, token);
-			if (subcommandindex > 0 && token) {
-				if (strncmp(subcommand[0], ECHO_BUILTIN, strlen(subcommand[0]) != 0) && token[i] == ' ') {
-					continue;
-				}
+			printf("\tgroup: %d token_index: %d token: `%s`\n", i, j, token);
+			if (token && !readspaces && token[0] == ' ') {
+				continue;
 			}
 			if (token && strncmp(token, "<", strlen(token) ) == 0) {
-				stdinfile = command->tokenized[j+1];
-				printf("stdin from %s\n", command->tokenized[j+1]);
-				j++;
+				if (command->tokenized[j+1][0] != ' ') {
+					stdinfile = command->tokenized[j+1];
+					j++;
+				} else if (command->tokenized[j+2][0] != ' ') {
+					stdinfile = command->tokenized[j+2];
+					j+=2;
+				} else { 
+					fprintf(stderr, "Syntax error on <\n"); 	
+					break;
+				}
+				printf("stdin from %s\n", stdinfile);
 			} else if (token && strncmp(token,  ">", strlen(token)) == 0) {
-				redirectfile = command->tokenized[j+1];
-				printf("redirect into %s\n", command->tokenized[j+1]);
-				j++;
+				if (command->tokenized[j+1][0] != ' ') {
+					redirectfile = command->tokenized[j+1];
+					j++;
+				} else if (command->tokenized[j+2][0] != ' ') {
+					redirectfile = command->tokenized[j+2];
+					j+=2;
+				} else { 
+					fprintf(stderr, "Syntax error on >\n"); 	
+					break;
+				}
+				printf("redirect into %s\n", redirectfile);
 			} else if (token && strncmp(token, ">>", strlen(token)) == 0) {
-				redirectfile = command->tokenized[j+1];	
-				printf("append to %s\n", command->tokenized[j+1]);
+				if (command->tokenized[j+1][0] != ' ') {
+					redirectfile = command->tokenized[j+1];
+					j++;
+				} else if (command->tokenized[j+2][0] != ' ') {
+					redirectfile = command->tokenized[j+2];
+					j+=2;
+				} else { 
+					fprintf(stderr, "Syntax error on >\n"); 	
+					break;
+				}
+				printf("append into %s\n", redirectfile);
 				openflags |= O_APPEND;
-				j++;
 			} else if (token) {
 				subcommand[subcommandindex] = token;
-				//printf("subcommand: %s\n", subcommand[subcommandindex]);
+				if (strncmp(token, ECHO_BUILTIN, strlen(token)) == 0) {
+					readspaces = 1;
+				} 
+				printf("subcommand: %s\n", subcommand[subcommandindex]);
 				subcommandindex++;
 			} else  {
 				continue;
