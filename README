@@ -1,0 +1,6 @@
+Other tests I used
+
+There were a lot of different cases I had to account for. Unlike our previous assignments, there isn't a specific format for them to abide by and they had more freedom with their input. 
+
+Syntax Errors:
+I had to account for wrong inputs such as redirects without operators, trailing and leading pipes, and mistypes commands.

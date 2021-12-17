@@ -208,7 +208,6 @@ delimit_by_space(struct command_struct* command)
 			}
 			strncpy(tokenized[index], current_pgroup, start);
 			tokenized[index][start] = '\0';
-			printf("%d: %s\n", index, tokenized[index]);
 			if (start == 0) {
 				index--;
 			}
@@ -231,7 +230,6 @@ delimit_by_space(struct command_struct* command)
 		}
 		strncpy(tokenized[index], current_pgroup, tokenlen);
 		tokenized[index][tokenlen] = '\0';
-		printf("%d: %s\n", index, tokenized[index]);
 		index++;
    		}
 		tokenized_index++;

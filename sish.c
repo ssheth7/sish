@@ -30,31 +30,17 @@ create_command_struct(char* input)
 	command->num_pipes = 0;
 	return command;
 }
-/*
-int
-iterate_tokens(struct command_struct* command) 
-{
-	int stdoutpipe[2];
-	int stdinpipe[2];
-}*/ 
+
 int
 execute_command(struct command_struct* command) 
 {
 	char* token;
 	int end_index, start_index, status, i, j;
+	int openflags;
 	pid_t pid;
 	sigset_t nmask, omask;
 	
 	
-	/*initcommand = command->tokenized[0];
-	if (strncmp(initcommand, CD_BUILTIN, strlen(initcommand)) == 0) {
-		return cd(command);
-	} else if (strncmp(initcommand, ECHO_BUILTIN, strlen(initcommand)) == 0) {
-		return echo(command);
-	}*/
-	/*for (int i = 0; i < command->num_tokens; i++) {
-		printf("tokenized[%d]: `%s`\n", i, command->tokenized[i]);
-	}*/
 	if (sigemptyset(&nmask) < 0) {
 		err(EXIT_FAILURE, "sigemptyset");
 	}
@@ -65,7 +51,12 @@ execute_command(struct command_struct* command)
 		err(EXIT_FAILURE, "sigprocmask");
 	}
 
+	char *subcommand[ARG_MAX];
+	int subcommandindex;
+	char* redirectfile = NULL;
+	char* stdinfile = NULL;
 	/* For each command  */	
+	openflags = O_CREAT | O_RDWR;
 	for (i = 0; i < command->num_pipes - 1; i++) {
 		start_index = command->pipe_indexes[i];
 		end_index = command->pipe_indexes[i + 1];
@@ -75,24 +66,73 @@ execute_command(struct command_struct* command)
 		if (start_index != 0) {
 			start_index ++;
 		}
-		printf("group %d pipe_index: %d\n", i, start_index);
-		
+		//printf("group %d pipe_index: %d\n", i, start_index);
+		subcommandindex = 0;
 		/* Process each from left to right */
 		for (j = start_index; j < end_index; j++) {
 			token = command->tokenized[j];
-			printf("\tgroup: %d token_index: %d token: %s\n", i, j, command->tokenized[j]);
+			//printf("\tgroup: %d token_index: %d token: %s\n", i, j, token);
+			if (subcommandindex > 0 && token) {
+				if (strncmp(subcommand[0], ECHO_BUILTIN, strlen(subcommand[0]) != 0) && token[i] == ' ') {
+					continue;
+				}
+			}
+			if (token && strncmp(token, "<", strlen(token) ) == 0) {
+				stdinfile = command->tokenized[j+1];
+				printf("stdin from %s\n", command->tokenized[j+1]);
+				j++;
+			} else if (token && strncmp(token,  ">", strlen(token)) == 0) {
+				redirectfile = command->tokenized[j+1];
+				printf("redirect into %s\n", command->tokenized[j+1]);
+				j++;
+			} else if (token && strncmp(token, ">>", strlen(token)) == 0) {
+				redirectfile = command->tokenized[j+1];	
+				printf("append to %s\n", command->tokenized[j+1]);
+				openflags |= O_APPEND;
+				j++;
+			} else if (token) {
+				subcommand[subcommandindex] = token;
+				//printf("subcommand: %s\n", subcommand[subcommandindex]);
+				subcommandindex++;
+			} else  {
+				continue;
+			}
 		}
-		continue;
-		if (strncmp(token, "<", strlen(token) ) != 0) {
-			printf("stdin from %s\n", );
-		}
+		subcommand[subcommandindex] = NULL;
 		if ((pid = fork()) == -1) {
 			err(EXIT_FAILURE, "fork");	
 			/* NOT REACHED  */
 		}
 		/* child process  */
-		if (pid == 0) { 		
-			execvp(command->tokenized[0], command->tokenized);
+		if (pid == 0) { 
+			int outputfd;	
+			int inputfd;
+			if (redirectfile) {
+				if ((outputfd = open(redirectfile, openflags, S_IRUSR | S_IWUSR))  == -1) {
+					fprintf(stderr, "%s: %s: No such file or directory\n",getprogname(), redirectfile);
+					return EXIT_FAILURE; 
+				}
+				if (dup2(outputfd, STDOUT_FILENO) != STDOUT_FILENO) {
+					err(EXIT_FAILURE, "dup2 to stdout");
+				}
+				close(outputfd);
+			}	
+			if (stdinfile) {
+				if ((inputfd = open(stdinfile, O_RDONLY)) == -1) {
+					fprintf(stderr, "%s: %s: No such file or directory\n", getprogname(), stdinfile);
+					return EXIT_FAILURE;
+				}
+				if (dup2(inputfd, STDIN_FILENO) != STDIN_FILENO) {
+					err(EXIT_FAILURE, "dup2 to stdin");
+				}
+				close(inputfd);	
+			}
+			if (strncmp(subcommand[0], CD_BUILTIN, strlen(subcommand[0])) == 0) {
+				return cd(subcommand, subcommandindex);
+			} else if (strncmp(subcommand[0], ECHO_BUILTIN, strlen(subcommand[0])) == 0) {
+				return echo(subcommand, subcommandindex);
+			}
+			execvp(subcommand[0], subcommand);
 			return 127;
 		}
 		/* parent process  */
