@@ -21,9 +21,11 @@
 #define MAX_TOKENLEN  128
 #define MAX_COMMANDS  32
 
-#define CD_BUILTIN   "cd"
-#define ECHO_BUILTIN "echo"
-#define EXIT_BUILTIN "exit"
+#define CD_BUILTIN    "cd"
+#define ECHO_BUILTIN  "echo"
+#define EXIT_BUILTIN  "exit"
+
+#define SYNTAX_ERR    2
 
 int EXIT_STATUS;
 

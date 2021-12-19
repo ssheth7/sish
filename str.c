@@ -35,7 +35,7 @@ trim_str(char* input)
 	return input + start; 
 }
 
-void
+int
 delimit_by_pipe(struct command_struct* command)
 {
 	regex_t preg;
@@ -79,7 +79,6 @@ delimit_by_pipe(struct command_struct* command)
 		tokenized[index][2] = '\0';
 		index++;
 		inputcommand += end;      // seek the pointer to the start of the next token
-		command->num_pipes++;
 		
 	}
     	// print the last remaining portion
@@ -97,9 +96,10 @@ delimit_by_pipe(struct command_struct* command)
 	command->num_tokens = index + 1;
    	regfree(&preg);
 	free(inputcommand);
+	return EXIT_SUCCESS;
 }
 
-void
+int
 delimit_by_redirect(struct command_struct* command)
 {
 
@@ -141,7 +141,7 @@ delimit_by_redirect(struct command_struct* command)
 					tokenized[index + 1] = ">>";
 				} else {
 					fprintf(stderr, "syntax error near %c\n", current_pgroup[start]);
-					return;
+					return EXIT_FAILURE;
 				}
 			} else if (end - start == 1){
 				if (current_pgroup[start] == '>') {
@@ -151,7 +151,7 @@ delimit_by_redirect(struct command_struct* command)
 				}
 			} else {
 				fprintf(stderr, "syntax error near %c\n", current_pgroup[start]);
-				return;
+				return EXIT_FAILURE;
 			}
 			current_pgroup += end;      // seek the pointer to the start of the next token
 			index+=2;
@@ -173,9 +173,10 @@ delimit_by_redirect(struct command_struct* command)
 	command->tokenized = tokenized;
 	command->num_tokens = index + 1;
    	regfree(&preg);
+	return EXIT_SUCCESS;
 }
 
-void
+int
 delimit_by_space(struct command_struct* command)
 {
 	regex_t preg;
@@ -238,6 +239,7 @@ delimit_by_space(struct command_struct* command)
 	command->tokenized = tokenized;
 	command->num_tokens = index + 1;
    	regfree(&preg);
+	return EXIT_SUCCESS;
 }
 
 

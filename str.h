@@ -5,13 +5,13 @@
 
 #include "sish.h"
 
-void
+int
 delimit_by_pipe( struct command_struct*);
 
-void
+int
 delimit_by_redirect(struct command_struct*);
 
-void
+int
 delimit_by_space(struct command_struct*);
 
 char*

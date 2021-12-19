@@ -41,22 +41,17 @@ execute_command(struct command_struct* command)
 	sigset_t nmask, omask;
 	
 	
-	if (sigemptyset(&nmask) < 0) {
-		err(EXIT_FAILURE, "sigemptyset");
-	}
-	if (sigaddset(&nmask, SIGCHLD) < 0) {
-		err(EXIT_FAILURE, "sigaddset");
-	}	
-	if (sigprocmask(SIG_BLOCK, &nmask, &omask) < 0) {
-		err(EXIT_FAILURE, "sigprocmask");
-	}
 
 	char *subcommand[ARG_MAX];
 	int subcommandindex;
 	char* redirectfile = NULL;
 	char* stdinfile = NULL;
 	int readspaces = 0;
-	/* For each command  */	
+	int pipeoutput;
+	int readpipe = -1;
+	
+	
+	/* For each command group */	
 	openflags = O_CREAT | O_RDWR;
 	for (i = 0; i < command->num_pipes - 1; i++) {
 		start_index = command->pipe_indexes[i];
@@ -70,10 +65,13 @@ execute_command(struct command_struct* command)
 		//printf("group %d pipe_index: %d\n", i, start_index);
 		subcommandindex = 0;
 		readspaces = 0;
+		pipeoutput = 0;
+		int cpipe[2];
+		int background = 0;
 		/* Process each from left to right */
 		for (j = start_index; j < end_index; j++) {
 			token = command->tokenized[j];
-			printf("\tgroup: %d token_index: %d token: `%s`\n", i, j, token);
+			//printf("\tgroup: %d token_index: %d token: `%s`\n", i, j, token);
 			if (token && !readspaces && token[0] == ' ') {
 				continue;
 			}
@@ -88,7 +86,6 @@ execute_command(struct command_struct* command)
 					fprintf(stderr, "Syntax error on <\n"); 	
 					break;
 				}
-				printf("stdin from %s\n", stdinfile);
 			} else if (token && strncmp(token,  ">", strlen(token)) == 0) {
 				if (command->tokenized[j+1][0] != ' ') {
 					redirectfile = command->tokenized[j+1];
@@ -100,7 +97,6 @@ execute_command(struct command_struct* command)
 					fprintf(stderr, "Syntax error on >\n"); 	
 					break;
 				}
-				printf("redirect into %s\n", redirectfile);
 			} else if (token && strncmp(token, ">>", strlen(token)) == 0) {
 				if (command->tokenized[j+1][0] != ' ') {
 					redirectfile = command->tokenized[j+1];
@@ -112,19 +108,31 @@ execute_command(struct command_struct* command)
 					fprintf(stderr, "Syntax error on >\n"); 	
 					break;
 				}
-				printf("append into %s\n", redirectfile);
 				openflags |= O_APPEND;
+			} else if (token && strncmp(token, "&", strlen(token)) == 0) {
+				background = 1;
+				j++;
 			} else if (token) {
 				subcommand[subcommandindex] = token;
 				if (strncmp(token, ECHO_BUILTIN, strlen(token)) == 0) {
 					readspaces = 1;
 				} 
-				printf("subcommand: %s\n", subcommand[subcommandindex]);
 				subcommandindex++;
 			} else  {
 				continue;
 			}
 		}
+		if (flags.x) {
+			printf("+ ");
+			printf("%s", subcommand[0]);
+			printf("\n");
+		}
+		if (end_index != command->num_tokens && !redirectfile && !stdinfile) {
+			pipeoutput = 1;
+			if (pipe2(cpipe, O_NONBLOCK)) {
+				err(EXIT_FAILURE, "pipe2");
+			}
+		} 
 		subcommand[subcommandindex] = NULL;
 		if ((pid = fork()) == -1) {
 			err(EXIT_FAILURE, "fork");	
@@ -134,6 +142,31 @@ execute_command(struct command_struct* command)
 		if (pid == 0) { 
 			int outputfd;	
 			int inputfd;
+	
+			if (sigprocmask(SIG_SETMASK, &nmask, NULL) < 0) {
+				err(EXIT_FAILURE, "sigprocmask");
+			}
+			if (sigprocmask(SIG_SETMASK, &omask, NULL) < 0) {
+				err(EXIT_FAILURE, "sigprocmask");
+			}
+			if (background) {
+				if (signal(SIGINT, SIG_IGN) == SIG_ERR) {
+					err(EXIT_FAILURE, "sigprogmask");
+				}	
+			}
+			if (pipeoutput) {
+				close(cpipe[0]);
+				if (dup2(cpipe[1], STDOUT_FILENO) != STDOUT_FILENO) {
+					err(EXIT_FAILURE, "dup2");
+				}
+				close(cpipe[1]);	
+			}
+			if (readpipe != -1) {
+				if (dup2(readpipe, STDIN_FILENO) != STDIN_FILENO) {
+					err(EXIT_FAILURE, "dup2");
+				}
+				close(readpipe);
+			}
 			if (redirectfile) {
 				if ((outputfd = open(redirectfile, openflags, S_IRUSR | S_IWUSR))  == -1) {
 					fprintf(stderr, "%s: %s: No such file or directory\n",getprogname(), redirectfile);
@@ -160,17 +193,40 @@ execute_command(struct command_struct* command)
 				return echo(subcommand, subcommandindex);
 			}
 			execvp(subcommand[0], subcommand);
-			return 127;
+			fprintf(stderr, "%s: %s: command not found\n", getprogname(), subcommand[0]);
+			_exit(127);
 		}
 		/* parent process  */
+		if (pipeoutput) {
+			close(cpipe[1]);
+			readpipe = cpipe[0];		
+		} else {
+			close(readpipe);
+			readpipe = -1;
+		}
 		if (pid > 0) {
-			if (waitpid(pid, &status, 0) < 0) {
-				err(EXIT_FAILURE, "waitpid");
+			if (background) {
+				int pgid;
+				if ((pgid = getpgid(pid)) == -1) {
+					err(EXIT_FAILURE, "getpgid");
+				}
+				if (waitpid(-1 * pgid, &status, WNOHANG) < 0) {
+					err(EXIT_FAILURE, "waitpid");
+				}
+			}
+			else {
+				if ( waitpid(pid, &status, 0) < 0) {
+					err(EXIT_FAILURE, "waitpid");
+				}
 			}
 		}
 	}
-	command->exit_code = status;
-	return status;
+	if (WIFEXITED(status)) {
+		command->exit_code = WEXITSTATUS(status);
+	} else {
+		command->exit_code = EXIT_SUCCESS;	
+	}
+	return command->exit_code;
 }
 
 int
@@ -180,24 +236,28 @@ process_input(char *buffer)
 	struct command_struct *command;
 			
 	command  = create_command_struct(buffer);
-	delimit_by_pipe(command);
-	delimit_by_redirect(command);
-	delimit_by_space(command);
+	if ( delimit_by_pipe(command)) {
+		EXIT_STATUS = SYNTAX_ERR;
+	}
+	if (delimit_by_redirect(command)) {
+		EXIT_STATUS = SYNTAX_ERR;
+	}
+	if (delimit_by_space(command)) {
+		EXIT_STATUS = SYNTAX_ERR;
+	}
+	
 	command->pipe_indexes[0] = 0;
 	for (i = 0, pipe_index = 1; i < command->num_tokens - 1; i++) {
-		//printf("%d: %s\n", i, command->tokenized[i]);
 		if (strncmp(command->tokenized[i], "|", strlen(command->tokenized[i])) == 0) {
-			//printf("pipe #%d at token %d\n", pipe_index, i);
 			command->pipe_indexes[pipe_index++] = i;
 		}
 	}
 	command->pipe_indexes[pipe_index] = -1;
 	command->num_pipes = pipe_index + 1;
-	//printf("num_pipes: %d\n", pipe_index + 1);
 	EXIT_STATUS = execute_command(command);
-	if (EXIT_STATUS == 127) {
+/*	if (EXIT_STATUS == 127) {
 		fprintf(stderr, "%s: %s: command not found\n", getprogname(), command->tokenized[0]);
-	}
+	}*/
 	for (i = 0; i < command->num_tokens - 1; i++) {
 		free(command->tokenized[i]);
 	}
@@ -210,6 +270,7 @@ main(int argc, char **argv)
 {
 	char buf[ARG_MAX];
 	int opt;
+	sigset_t nmask, omask;
 	
 	(void)setprogname(argv[0]);
 	
@@ -242,14 +303,22 @@ main(int argc, char **argv)
 		process_input(flags.c);	
 		return EXIT_STATUS;
 	}
+	if (sigemptyset(&nmask) < 0) {
+		err(EXIT_FAILURE, "sigemptyset");
+	}
+	if (sigaddset(&nmask, SIGCHLD) < 0) {
+		err(EXIT_FAILURE, "sigaddset");
+	}
+	if (sigaddset(&nmask, SIGINT) < 0) {
+		err(EXIT_FAILURE, "sigaddset");
+	}	
+	if (sigaddset(&nmask, SIGTSTP) < 0) {
+		err(EXIT_FAILURE, "sigaddset");
+	}	
+	if (sigprocmask(SIG_BLOCK, &nmask, &omask) < 0) {
+		err(EXIT_FAILURE, "sigprocmask");
+	}
 	
-	if (signal(SIGINT, SIG_IGN) == SIG_ERR) {
-		err(EXIT_FAILURE, "signal");
-	}
-
-	if (signal(SIGQUIT, SIG_IGN) == SIG_ERR) {
-		err(EXIT_FAILURE, "signal");
-	}
 	
 	char *input;
 	for (;;) {
@@ -264,7 +333,7 @@ main(int argc, char **argv)
 			}
 		}
 		if (strncmp(buf, "\n", strlen(buf)) == 0) {
-			return 0;
+			continue;
 		}
 		buf[strlen(buf) - 1] = '\0';
 		if (strncmp(input, EXIT_BUILTIN, strlen(input)) == 0) {
