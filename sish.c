@@ -25,7 +25,7 @@ create_command_struct(char* input)
 	if ((command->raw = calloc(1, sizeof(char*) * (inputlen))) == NULL) {
 		err(EXIT_FAILURE, "calloc");
 	}
-	strncpy(command->raw, input, inputlen);
+	(void)strncpy(command->raw, input, inputlen);
 	command->raw[inputlen] = '\0';
 	command->num_pipes = 0;
 	return command;
@@ -83,8 +83,9 @@ execute_command(struct command_struct* command)
 					stdinfile = command->tokenized[j+2];
 					j+=2;
 				} else { 
-					fprintf(stderr, "Syntax error on <\n"); 	
-					break;
+					(void)fprintf(stderr, "Syntax error on <\n"); 	
+					command->exit_code = SYNTAX_ERR;
+					return command->exit_code;
 				}
 			} else if (token && strncmp(token,  ">", strlen(token)) == 0) {
 				if (command->tokenized[j+1][0] != ' ') {
@@ -94,8 +95,8 @@ execute_command(struct command_struct* command)
 					redirectfile = command->tokenized[j+2];
 					j+=2;
 				} else { 
-					fprintf(stderr, "Syntax error on >\n"); 	
-					break;
+					command->exit_code = SYNTAX_ERR;
+					return command->exit_code;
 				}
 			} else if (token && strncmp(token, ">>", strlen(token)) == 0) {
 				if (command->tokenized[j+1][0] != ' ') {
@@ -105,8 +106,8 @@ execute_command(struct command_struct* command)
 					redirectfile = command->tokenized[j+2];
 					j+=2;
 				} else { 
-					fprintf(stderr, "Syntax error on >\n"); 	
-					break;
+					command->exit_code = SYNTAX_ERR;
+					return command->exit_code;
 				}
 				openflags |= O_APPEND;
 			} else if (token && strncmp(token, "&", strlen(token)) == 0) {
@@ -122,11 +123,6 @@ execute_command(struct command_struct* command)
 				continue;
 			}
 		}
-		if (flags.x) {
-			printf("+ ");
-			printf("%s", subcommand[0]);
-			printf("\n");
-		}
 		if (end_index != command->num_tokens && !redirectfile && !stdinfile) {
 			pipeoutput = 1;
 			if (pipe2(cpipe, O_NONBLOCK)) {
@@ -134,6 +130,14 @@ execute_command(struct command_struct* command)
 			}
 		} 
 		subcommand[subcommandindex] = NULL;
+		if (flags.x) {
+			int increment = 0;
+			printf("+ ");
+			while(subcommand[increment]) {
+				printf("%s ", subcommand[increment++]);
+			}
+			printf("\n");
+		}
 		if ((pid = fork()) == -1) {
 			err(EXIT_FAILURE, "fork");	
 			/* NOT REACHED  */
@@ -188,9 +192,16 @@ execute_command(struct command_struct* command)
 				close(inputfd);	
 			}
 			if (strncmp(subcommand[0], CD_BUILTIN, strlen(subcommand[0])) == 0) {
-				return cd(subcommand, subcommandindex);
+				if (cd(subcommand, subcommandindex)) {
+					_exit(EXIT_FAILURE);
+				}
+				_exit(EXIT_SUCCESS);
 			} else if (strncmp(subcommand[0], ECHO_BUILTIN, strlen(subcommand[0])) == 0) {
-				return echo(subcommand, subcommandindex);
+				
+				if (echo(subcommand, subcommandindex)) {
+					_exit(EXIT_FAILURE);
+				}
+				_exit(EXIT_SUCCESS);
 			}
 			execvp(subcommand[0], subcommand);
 			fprintf(stderr, "%s: %s: command not found\n", getprogname(), subcommand[0]);
@@ -289,8 +300,12 @@ main(int argc, char **argv)
 		}
 	}
 	argc -= optind;
-	argc += optind;
+	argv += optind;
 	
+	if (argv[0]) {
+		(void)printf(usage);
+		return EXIT_FAILURE;
+	}
 	pwd = getpwuid(getuid());
 		
 	if (flags.c) {

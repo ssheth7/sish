@@ -10,18 +10,18 @@ int
 cd(char **subcommand, int numtokens)
 {
 	if (numtokens > 3) {
-		fprintf(stderr, "%s: cd: too many arguments\n", getprogname());
+		(void)fprintf(stderr, "%s: cd: too many arguments\n", getprogname());
 		return EXIT_FAILURE;
 	}
 	if (numtokens == 1) {
 		if (chdir(pwd->pw_dir) == -1) {
-			fprintf(stderr, "%s: cd: %s: No such file or directory\n", getprogname(), pwd->pw_dir);
+			(void)fprintf(stderr, "%s: cd: %s: No such file or directory\n", getprogname(), pwd->pw_dir);
 			return EXIT_FAILURE;
 		}
 		return EXIT_SUCCESS;
 	}	
 	if (chdir(subcommand[1]) == -1) {
-		fprintf(stderr, "%s: cd: %s: %s\n", getprogname(), subcommand[1], strerror(errno));
+		(void)fprintf(stderr, "%s: cd: %s: %s\n", getprogname(), subcommand[1], strerror(errno));
 		return EXIT_FAILURE;
 	}
 	return EXIT_SUCCESS;
@@ -39,12 +39,13 @@ echo(char **subcommand, int numtokens)
 	pid = getpid();
 	for (i = 1; i < numtokens ; i++) {
 		token = subcommand[i];
+		
 		if (strncmp(token, get_last_status, strlen(token)) == 0) {
-			printf("%d", EXIT_STATUS);
+			(void)printf("%d", EXIT_STATUS);
 		} else if (strncmp(token, get_pid, strlen(token)) == 0) {
-			printf("%d", pid);
+			(void)printf("%d", pid);
 		} else {
-			printf("%s", subcommand[i]);	
+			(void)printf("%s", subcommand[i]);	
 		}
 	}
 	printf("\n");
@@ -53,5 +54,6 @@ echo(char **subcommand, int numtokens)
 
 void
 exit_sish() {
-	exit(EXIT_STATUS);
+	printf("%d exiting with %d\n", getpid(), EXIT_STATUS);
+	(void)exit(EXIT_STATUS);
 } 
