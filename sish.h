@@ -47,8 +47,6 @@ typedef struct command_struct {
 } command_struct;
 
 
-int main(int, char**);
-
 
 
 

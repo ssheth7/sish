@@ -1,4 +1,6 @@
-
+/*
+ * Contains implementation of built in shell commands: cd, echo, exit
+*/
 #include <errno.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -6,6 +8,9 @@
 #include "sish.h"
 
 
+/*
+ * Changes directory of shell
+*/
 int 
 cd(char **subcommand, int numtokens)
 {
@@ -27,6 +32,9 @@ cd(char **subcommand, int numtokens)
 	return EXIT_SUCCESS;
 }
 
+/*
+ * Implementation of built in command echo
+*/
 int 
 echo(char **subcommand, int numtokens)
 {
@@ -52,8 +60,10 @@ echo(char **subcommand, int numtokens)
 	return EXIT_SUCCESS;
 }
 
+/*
+ * Exits the shell with last status code
+*/
 void
 exit_sish() {
-	printf("%d exiting with %d\n", getpid(), EXIT_STATUS);
 	(void)exit(EXIT_STATUS);
 } 

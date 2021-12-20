@@ -1,6 +1,15 @@
 Other tests I used
 
-There were a lot of different cases I had to account for. Unlike our previous assignments, there isn't a specific format for them to abide by and they had more freedom with their input. 
+There were a lot of different cases I had to account for. Unlike our previous assignments, there isn't a specific format for the user to abide by and they have more freedom with their input. 
 
 Syntax Errors:
-I had to account for wrong inputs such as redirects without operators, trailing and leading pipes, and mistypes commands.
+I had to account for wrong inputs such as redirects without operators, trailing and leading pipes, and mistyped commands.
+Some examples of these tests were "ls -la |", "ls -la >", and "< ls -la". There are a lot of mistakes a user can make when typing command
+and it was difficult accounting for all of them.
+
+Spacing:
+Initially, I thought the task would be simple. Delimit by spacing and then exec. However, with then echo built in, we had to preserve the spacing
+and make every other command ignore them. Some tests I considered where "ls                 -la | wc -l", and "          ". Additionally, 
+identifying what the exact syntax error was and giving the user an informative error message also presented a challenge. 
+
+ 

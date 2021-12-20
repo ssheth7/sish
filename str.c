@@ -1,4 +1,6 @@
-
+/*
+ * Includes string parsing and alterating methods
+*/
 #include <err.h>
 #include <limits.h>
 #include <regex.h>
@@ -6,9 +8,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "builtins.h"
 #include "sish.h"
 
-
+/*
+ * Returns a pointer to trimmed input
+*/
 char*
 trim_str(char* input)
 {
@@ -35,6 +40,10 @@ trim_str(char* input)
 	return input + start; 
 }
 
+/*
+ * Uses regex to delimit a string into a tokenized array
+ *  "ls -la | wc -l" -> {"ls -la", "|", "wc -l"}
+*/
 int
 delimit_by_pipe(struct command_struct* command)
 {
@@ -53,14 +62,16 @@ delimit_by_pipe(struct command_struct* command)
 		err(EXIT_FAILURE, "malloc");
 	}
 
-	strncpy(inputcommand, command->raw, commandlen + 1);
+	(void)strncpy(inputcommand, command->raw, commandlen + 1);
 	inputcommand[strlen(command->raw)] = '\0';
+
 	if ((rc = regcomp(&preg, pattern, REG_EXTENDED)) != 0) {
 		err(EXIT_FAILURE, "regcomp");
 	}
 	if ((tokenized = calloc(MAX_TOKENS, MAX_TOKENLEN)) == NULL) {
 		err(EXIT_FAILURE, "calloc");
 	}
+
 	index = 0;
 	while (!(rc = regexec(&preg, inputcommand, nmatch, pmatch, 0))) {
         	start = pmatch[0].rm_so;
@@ -69,25 +80,26 @@ delimit_by_pipe(struct command_struct* command)
 		if ((tokenized[index] = malloc(sizeof(char*) * MAX_TOKENLEN)) == NULL) {
 			exit(EXIT_FAILURE);
 		}
-		strncpy(tokenized[index], inputcommand, start);
+		(void)strncpy(tokenized[index], inputcommand, start);
 		tokenized[index][tokenlen] = '\0';
 		index++;
+		/* Add following pipe into tokenized */
 		if ((tokenized[index] = malloc(sizeof(char*) * 2)) == NULL) {
 			exit(EXIT_FAILURE);
 		}	
 		strncpy(tokenized[index], "|", 2); 
 		tokenized[index][2] = '\0';
 		index++;
-		inputcommand += end;      // seek the pointer to the start of the next token
-		
+		inputcommand += end;     		
 	}
-    	// print the last remaining portion
-    	if (strlen(inputcommand) > 0) {
+    	
+	/* Add trailing characters into tokenized */
+	if (strlen(inputcommand) > 0) {
 		tokenlen = strlen(inputcommand);
 		if ((tokenized[index] = malloc(sizeof(char*) * MAX_TOKENLEN)) == NULL) {
-			err(EXIT_FAILURE, "malloc");;
+			err(EXIT_FAILURE, "malloc");
 		}
-		strncpy(tokenized[index], inputcommand, tokenlen);
+		(void)strncpy(tokenized[index], inputcommand, tokenlen);
 		tokenized[index][tokenlen] = '\0';
    		index++;
 	}
@@ -95,10 +107,13 @@ delimit_by_pipe(struct command_struct* command)
 	command->tokenized = tokenized;
 	command->num_tokens = index + 1;
    	regfree(&preg);
-	free(inputcommand);
 	return EXIT_SUCCESS;
 }
 
+/*
+ * Delimits a string array by redirects
+ *  {"< file cat", "|", "wc -l" } -> {"<", "file cat", "|", "wc -l"} 
+*/
 int
 delimit_by_redirect(struct command_struct* command)
 {
@@ -117,6 +132,7 @@ delimit_by_redirect(struct command_struct* command)
 	}
 	index = 0;
 	tokenized_index = 0;
+
 	while ((current_pgroup = command->tokenized[tokenized_index])) {
 		if ((rc = regcomp(&preg, pattern, REG_EXTENDED)) != 0) {
 			err(EXIT_FAILURE, "regcomp");
@@ -130,7 +146,7 @@ delimit_by_redirect(struct command_struct* command)
 			if ((tokenized[index] = malloc(sizeof(char*) * MAX_TOKENLEN)) == NULL) {
 				exit(EXIT_FAILURE);
 			}
-			strncpy(tokenized[index], current_pgroup, start);
+			(void)strncpy(tokenized[index], current_pgroup, start);
 			tokenized[index][start] = '\0';
 			if (start == 0) {
 				index--;
@@ -156,26 +172,29 @@ delimit_by_redirect(struct command_struct* command)
 			current_pgroup += end;      // seek the pointer to the start of the next token
 			index+=2;
 		}
-    		// prin	t the last remaining portion
+    		// Print trailing characters
     		if (strlen(current_pgroup) > 0) {
 			tokenlen = strlen(current_pgroup);
 		if ((tokenized[index] = malloc(sizeof(char*) * MAX_TOKENLEN)) == NULL) {
 			err(EXIT_FAILURE, "malloc");
 		}
-		strncpy(tokenized[index], current_pgroup, tokenlen);
+		(void)strncpy(tokenized[index], current_pgroup, tokenlen);
 		tokenized[index][tokenlen] = '\0';
 		index++;
-   //     	printf("tokenized[%d]: `%s` starts at %d\n", index, tokenized[index], start);
    		}
 		tokenized_index++;
 	}
 	tokenized[index + 1] = NULL;
 	command->tokenized = tokenized;
 	command->num_tokens = index + 1;
-   	regfree(&preg);
+	regfree(&preg);
 	return EXIT_SUCCESS;
 }
 
+/*
+ * Delimits a string array by spaces
+ *  {"<", "file cat", "|", "wc -l"}  -> {"<", "file", " ", "cat", "|", "wc", "-l"}
+*/
 int
 delimit_by_space(struct command_struct* command)
 {
@@ -203,9 +222,8 @@ delimit_by_space(struct command_struct* command)
 			num_spaces = end - start;
 			tokenlen = start;
 			
-			/* Add characters in between delimiter  */
-			if ((tokenized[index] = malloc(sizeof(char*) * MAX_TOKENLEN)) == NULL) {
-				exit(EXIT_FAILURE);
+			if ((tokenized[index] = malloc(sizeof(char) * MAX_TOKENLEN)) == NULL) {
+				(void)err(EXIT_FAILURE, "malloc");
 			}
 			strncpy(tokenized[index], current_pgroup, start);
 			tokenized[index][start] = '\0';
@@ -213,23 +231,22 @@ delimit_by_space(struct command_struct* command)
 				index--;
 			}
 			index++;
-			if ((tokenized[index] = malloc(sizeof(char*) * MAX_TOKENLEN)) == NULL) {
-				exit(EXIT_FAILURE);
+			/* Add spaces to tokenized  */
+			if ((tokenized[index] = malloc(sizeof(char) * MAX_TOKENLEN)) == NULL) {
+				(void)err(EXIT_FAILURE, "malloc");
 			}
-			strncpy(tokenized[index], current_pgroup + start, num_spaces);
+			(void)strncpy(tokenized[index], current_pgroup + start, num_spaces);
 			tokenized[index][num_spaces + 1] = '\0';
-			//printf("%d: %s\n", index, tokenized[index]);
 			index++;
-			current_pgroup += end;      // seek the pointer to the start of the next token
-			
+			current_pgroup += end;      			
 		}
-    		// print the last remaining portion
+    		/* Add trailing characters to tokenized */
     		if (strlen(current_pgroup) > 0) {
 			tokenlen = strlen(current_pgroup);
-		if ((tokenized[index] = malloc(sizeof(char*) * MAX_TOKENLEN)) == NULL) {
+		if ((tokenized[index] = malloc(sizeof(char) * MAX_TOKENLEN)) == NULL) {
 			err(EXIT_FAILURE, "malloc");
 		}
-		strncpy(tokenized[index], current_pgroup, tokenlen);
+		(void)strncpy(tokenized[index], current_pgroup, tokenlen);
 		tokenized[index][tokenlen] = '\0';
 		index++;
    		}
